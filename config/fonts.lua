@@ -3,13 +3,14 @@ local platform = require('utils.platform')
 
 -- local font_family = 'Maple Mono NF'
 local font_family = 'CaskaydiaMono Nerd Font Mono'
+local font_family_pc = 'CaskaydiaMono Nerd Font'
 -- local font_family = 'CartographCF Nerd Font'
 
-local font_size = platform.is_mac and 22 or 21
+local font_size = platform.is_mac and 22 or 22
 
 return {
    font = wezterm.font({
-      family = font_family,
+      family = platform.is_mac and font_family or font_family_pc,
       weight = 'Medium',
    }),
    font_size = font_size,
