@@ -1,21 +1,190 @@
-local Config = require('config')
+local wezterm = require('wezterm')
+local act = wezterm.action
 
-require('utils.backdrops')
-   -- :set_focus('#000000')
-   -- :set_images_dir(require('wezterm').home_dir .. '/Pictures/Wallpapers/')
-   :set_images()
-   :random()
+-- Platform-independent key bindings configuration
+-- This configuration can be used directly on Windows, Linux, or macOS
 
-require('events.left-status').setup()
-require('events.right-status').setup({ date_format = '%a %H:%M:%S' })
-require('events.tab-title').setup({ hide_active_tab_unseen = false, unseen_icon = 'numbered_box' })
-require('events.new-tab-button').setup()
-require('events.gui-startup').setup()
+-- Use CTRL+ALT instead of platform-specific modifiers for better cross-platform compatibility
+local mod = {
+   SUPER = 'ALT',
+   SUPER_REV = 'ALT|CTRL',
+}
 
-return Config:init()
-   :append(require('config.appearance'))
-   :append(require('config.bindings'))
-   :append(require('config.domains'))
-   :append(require('config.fonts'))
-   :append(require('config.general'))
-   :append(require('config.launch')).options
+-- stylua: ignore
+local keys = {
+   -- misc/useful --
+   { key = 'F12', mods = 'NONE',    action = act.ShowLauncher },
+   { key = 'F11', mods = 'NONE',    action = act.ToggleFullScreen },
+   { key = 'f',   mods = mod.SUPER, action = act.Search({ CaseInSensitiveString = '' }) },
+   {
+      key = 'u',
+      mods = mod.SUPER_REV,
+      action = wezterm.action.QuickSelectArgs({
+         label = 'open url',
+         patterns = {
+            '\\((https?://\\S+)\\)',
+            '\\[(https?://\\S+)\\]',
+            '\\{(https?://\\S+)\\}',
+            '<(https?://\\S+)>',
+            '\\bhttps?://\\S+[)/a-zA-Z0-9-]+'
+         },
+         action = wezterm.action_callback(function(window, pane)
+            local url = window:get_selection_text_for_pane(pane)
+            wezterm.log_info('opening: ' .. url)
+            wezterm.open_with(url)
+         end),
+      }),
+   },
+
+   -- cursor movement --
+   { key = 'LeftArrow',  mods = mod.SUPER,     action = act.SendString '\u{1b}OH' },
+   { key = 'RightArrow', mods = mod.SUPER,     action = act.SendString '\u{1b}OF' },
+   { key = 'Backspace',  mods = mod.SUPER,     action = act.SendString '\u{15}' },
+
+   -- copy/paste --
+   { key = 'c',          mods = 'CTRL|SHIFT',  action = act.CopyTo('Clipboard') },
+   { key = 'v',          mods = 'CTRL|SHIFT',  action = act.PasteFrom('Clipboard') },
+
+   -- tabs --
+   -- tabs: spawn+close
+   { key = 't',          mods = mod.SUPER,     action = act.SpawnTab('DefaultDomain') },
+   { key = 'w',          mods = mod.SUPER_REV, action = act.CloseCurrentTab({ confirm = false }) },
+
+   -- tabs: navigation
+   { key = '[',          mods = mod.SUPER,     action = act.ActivateTabRelative(-1) },
+   { key = ']',          mods = mod.SUPER,     action = act.ActivateTabRelative(1) },
+   { key = '[',          mods = mod.SUPER_REV, action = act.MoveTabRelative(-1) },
+   { key = ']',          mods = mod.SUPER_REV, action = act.MoveTabRelative(1) },
+
+   -- window --
+   -- window: spawn windows
+   { key = 'n',          mods = mod.SUPER,     action = act.SpawnWindow },
+
+   -- window: zoom window
+   {
+      key = '-',
+      mods = mod.SUPER,
+      action = wezterm.action_callback(function(window, _pane)
+         local dimensions = window:get_dimensions()
+         if dimensions.is_full_screen then
+            return
+         end
+         local new_width = dimensions.pixel_width - 50
+         local new_height = dimensions.pixel_height - 50
+         window:set_inner_size(new_width, new_height)
+      end)
+   },
+   {
+      key = '=',
+      mods = mod.SUPER,
+      action = wezterm.action_callback(function(window, _pane)
+         local dimensions = window:get_dimensions()
+         if dimensions.is_full_screen then
+            return
+         end
+         local new_width = dimensions.pixel_width + 50
+         local new_height = dimensions.pixel_height + 50
+         window:set_inner_size(new_width, new_height)
+      end)
+   },
+   {
+      key = 'Enter',
+      mods = mod.SUPER_REV,
+      action = wezterm.action_callback(function(window, _pane)
+         window:maximize()
+      end)
+   },
+
+   -- panes --
+   -- panes: split panes
+   {
+      key = [[\]],
+      mods = mod.SUPER,
+      action = act.SplitVertical({ domain = 'CurrentPaneDomain' }),
+   },
+   {
+      key = [[\]],
+      mods = mod.SUPER_REV,
+      action = act.SplitHorizontal({ domain = 'CurrentPaneDomain' }),
+   },
+
+   -- panes: zoom+close pane
+   { key = 'Enter', mods = mod.SUPER,     action = act.TogglePaneZoomState },
+   { key = 'w',     mods = mod.SUPER,     action = act.CloseCurrentPane({ confirm = false }) },
+
+   -- panes: navigation
+   { key = 'k',     mods = mod.SUPER_REV, action = act.ActivatePaneDirection('Up') },
+   { key = 'j',     mods = mod.SUPER_REV, action = act.ActivatePaneDirection('Down') },
+   { key = 'h',     mods = mod.SUPER_REV, action = act.ActivatePaneDirection('Left') },
+   { key = 'l',     mods = mod.SUPER_REV, action = act.ActivatePaneDirection('Right') },
+   {
+      key = 'p',
+      mods = mod.SUPER_REV,
+      action = act.PaneSelect({ alphabet = '1234567890', mode = 'SwapWithActiveKeepFocus' }),
+   },
+
+   -- panes: scroll pane
+   { key = 'u',        mods = mod.SUPER, action = act.ScrollByLine(-5) },
+   { key = 'd',        mods = mod.SUPER, action = act.ScrollByLine(5) },
+   { key = 'PageUp',   mods = 'NONE',    action = act.ScrollByPage(-0.75) },
+   { key = 'PageDown', mods = 'NONE',    action = act.ScrollByPage(0.75) },
+
+   -- key-tables --
+   -- resizes fonts
+   {
+      key = 'f',
+      mods = 'LEADER',
+      action = act.ActivateKeyTable({
+         name = 'resize_font',
+         one_shot = false,
+         timemout_milliseconds = 1000,
+      }),
+   },
+   -- resize panes
+   {
+      key = 'p',
+      mods = 'LEADER',
+      action = act.ActivateKeyTable({
+         name = 'resize_pane',
+         one_shot = false,
+         timemout_milliseconds = 1000,
+      }),
+   },
+}
+
+-- stylua: ignore
+local key_tables = {
+   resize_font = {
+      { key = 'k',      action = act.IncreaseFontSize },
+      { key = 'j',      action = act.DecreaseFontSize },
+      { key = 'r',      action = act.ResetFontSize },
+      { key = 'Escape', action = 'PopKeyTable' },
+      { key = 'q',      action = 'PopKeyTable' },
+   },
+   resize_pane = {
+      { key = 'k',      action = act.AdjustPaneSize({ 'Up', 1 }) },
+      { key = 'j',      action = act.AdjustPaneSize({ 'Down', 1 }) },
+      { key = 'h',      action = act.AdjustPaneSize({ 'Left', 1 }) },
+      { key = 'l',      action = act.AdjustPaneSize({ 'Right', 1 }) },
+      { key = 'Escape', action = 'PopKeyTable' },
+      { key = 'q',      action = 'PopKeyTable' },
+   },
+}
+
+local mouse_bindings = {
+   -- Ctrl-click will open the link under the mouse cursor
+   {
+      event = { Up = { streak = 1, button = 'Left' } },
+      mods = 'CTRL',
+      action = act.OpenLinkAtMouseCursor,
+   },
+}
+
+-- Return configuration that can be used directly or merged with other configs
+return {
+   disable_default_key_bindings = true,
+   leader = { key = 'Space', mods = mod.SUPER_REV },
+   keys = keys,
+   key_tables = key_tables,
+   mouse_bindings = mouse_bindings,
+}
